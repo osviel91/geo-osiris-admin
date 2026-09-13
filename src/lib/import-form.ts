@@ -1,4 +1,4 @@
-import type { AdminImport, CandidateReason, CsvMapping } from "@/lib/types";
+import type { AdminImport, CandidateReason, CsvMapping, CsvPropertyType } from "@/lib/types";
 
 export const MAX_IMPORT_BYTES = 5_000_000;
 
@@ -6,7 +6,7 @@ export type CsvSelection = {
   longitude: string;
   latitude: string;
   externalId: string;
-  properties: Record<string, string>;
+  properties: Record<string, { name: string; type: CsvPropertyType }>;
 };
 
 export function buildCsvMapping(headers: string[], selection: CsvSelection): CsvMapping {
@@ -25,11 +25,11 @@ export function buildCsvMapping(headers: string[], selection: CsvSelection): Csv
   const reserved = new Set(
     [selection.longitude, selection.latitude, selection.externalId].filter(Boolean),
   );
-  const properties: Record<string, string> = {};
-  for (const [column, name] of Object.entries(selection.properties)) {
-    const property = name.trim();
+  const properties: CsvMapping["properties"] = {};
+  for (const [column, propertySelection] of Object.entries(selection.properties)) {
+    const property = propertySelection.name.trim();
     if (!property || reserved.has(column)) continue;
-    properties[property] = column;
+    properties[property] = { column, type: propertySelection.type };
   }
   return {
     longitude: selection.longitude,

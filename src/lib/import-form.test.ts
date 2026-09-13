@@ -20,6 +20,9 @@ function summary(overrides: Partial<AdminImport> = {}): AdminImport {
     candidate_count: 0,
     resolved_candidate_count: 0,
     unresolved_candidate_count: 0,
+    csv_mapping: {},
+    csv_headers: [],
+    mapping_version: "1",
     source_name: null,
     source_url: null,
     created_at: "2026-09-13T00:00:00Z",
@@ -35,7 +38,7 @@ describe("buildCsvMapping", () => {
       longitude: "lon",
       latitude: "lat",
       externalId: "call",
-      properties: { call: "callsign" },
+      properties: { call: { name: "callsign", type: "string" } },
     });
     expect(mapping).toEqual({
       longitude: "lon",
@@ -45,15 +48,22 @@ describe("buildCsvMapping", () => {
     });
   });
 
-  it("maps arbitrary property columns and renames them", () => {
+  it("round-trips property names and types from the mapping UI", () => {
     const mapping = buildCsvMapping(["x", "y", "name", "band"], {
       longitude: "x",
       latitude: "y",
       externalId: "",
-      properties: { name: "site_name", band: "band", x: "ignored" },
+      properties: {
+        name: { name: "site_name", type: "string" },
+        band: { name: "band", type: "number" },
+        x: { name: "ignored", type: "string" },
+      },
     });
     expect(mapping.external_id).toBeNull();
-    expect(mapping.properties).toEqual({ site_name: "name", band: "band" });
+    expect(mapping.properties).toEqual({
+      site_name: { column: "name", type: "string" },
+      band: { column: "band", type: "number" },
+    });
   });
 
   it("rejects missing or duplicate coordinate columns", () => {

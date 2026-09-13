@@ -7,8 +7,9 @@ import { ErrorBanner } from "@/components/ErrorBanner";
 import { parseCsvHeaders } from "@/lib/csv";
 import type { ActionError } from "@/lib/errors";
 import { MAX_IMPORT_BYTES, buildCsvMapping } from "@/lib/import-form";
+import type { CsvPropertyType } from "@/lib/types";
 
-type PropertyRow = { enabled: boolean; name: string };
+type PropertyRow = { enabled: boolean; name: string; type: CsvPropertyType };
 
 export function ImportUploadForm({ layerId }: { layerId: string }) {
   const router = useRouter();
@@ -47,7 +48,9 @@ export function ImportUploadForm({ layerId }: { layerId: string }) {
     setLongitude(detected[0] ?? "");
     setLatitude(detected[1] ?? "");
     setProperties(
-      Object.fromEntries(detected.map((header) => [header, { enabled: true, name: header }])),
+      Object.fromEntries(
+        detected.map((header) => [header, { enabled: true, name: header, type: "string" }]),
+      ),
     );
   }
 
@@ -77,7 +80,13 @@ export function ImportUploadForm({ layerId }: { layerId: string }) {
           properties: Object.fromEntries(
             propertyHeaders
               .filter((header) => properties[header]?.enabled)
-              .map((header) => [header, properties[header]?.name ?? header]),
+              .map((header) => [
+                header,
+                {
+                  name: properties[header]?.name ?? header,
+                  type: properties[header]?.type ?? "string",
+                },
+              ]),
           ),
         });
         form.set("csv_mapping", JSON.stringify(mapping));
@@ -160,30 +169,59 @@ export function ImportUploadForm({ layerId }: { layerId: string }) {
             <p className="text-sm font-medium">Properties</p>
             {propertyHeaders.map((header) => (
               <div key={header} className="flex items-center gap-3 text-sm">
-                <label className="flex w-1/3 items-center gap-2">
+                <label className="flex w-1/4 items-center gap-2">
                   <input
                     type="checkbox"
                     checked={properties[header]?.enabled ?? true}
                     onChange={(event) =>
                       setProperties((current) => ({
                         ...current,
-                        [header]: { enabled: event.target.checked, name: current[header]?.name ?? header },
+                        [header]: {
+                          enabled: event.target.checked,
+                          name: current[header]?.name ?? header,
+                          type: current[header]?.type ?? "string",
+                        },
                       }))
                     }
                   />
                   <span className="font-mono text-xs">{header}</span>
                 </label>
                 <input
-                  className="w-2/3 rounded border px-2 py-1"
+                  className="w-2/4 rounded border px-2 py-1"
                   value={properties[header]?.name ?? header}
                   onChange={(event) =>
                     setProperties((current) => ({
                       ...current,
-                      [header]: { enabled: current[header]?.enabled ?? true, name: event.target.value },
+                      [header]: {
+                        enabled: current[header]?.enabled ?? true,
+                        name: event.target.value,
+                        type: current[header]?.type ?? "string",
+                      },
                     }))
                   }
                   aria-label={`Property name for ${header}`}
                 />
+                <select
+                  className="w-1/4 rounded border px-2 py-1"
+                  value={properties[header]?.type ?? "string"}
+                  onChange={(event) =>
+                    setProperties((current) => ({
+                      ...current,
+                      [header]: {
+                        enabled: current[header]?.enabled ?? true,
+                        name: current[header]?.name ?? header,
+                        type: event.target.value as CsvPropertyType,
+                      },
+                    }))
+                  }
+                  aria-label={`Property type for ${header}`}
+                >
+                  <option value="string">string</option>
+                  <option value="number">number</option>
+                  <option value="integer">integer</option>
+                  <option value="boolean">boolean</option>
+                  <option value="json">json</option>
+                </select>
               </div>
             ))}
             {propertyHeaders.length === 0 && (

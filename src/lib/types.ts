@@ -108,6 +108,9 @@ export type ImportBase = {
 export type AdminImport = ImportBase & {
   resolved_candidate_count: number;
   unresolved_candidate_count: number;
+  csv_mapping: Record<string, unknown>;
+  csv_headers: string[];
+  mapping_version: string;
 };
 
 export type ImportSummary = ImportBase & {
@@ -147,11 +150,17 @@ export type AdminImportRow = {
   resolved_at: string | null;
 };
 
+export type CsvPropertyType = "string" | "number" | "integer" | "boolean" | "json";
+
+export type CsvPropertyMapping =
+  | string
+  | { column: string; type?: CsvPropertyType };
+
 export type CsvMapping = {
   longitude: string;
   latitude: string;
   external_id: string | null;
-  properties: Record<string, string>;
+  properties: Record<string, CsvPropertyMapping>;
 };
 
 export type SourceStatus = "never" | "success" | "failed";
