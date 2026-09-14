@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   cancelImport,
-  commitImport,
   listImportRows,
   listImports,
   resolveImportRow,
@@ -22,13 +21,13 @@ function lastCall(fetchMock: ReturnType<typeof vi.fn>): [string, RequestInit] {
 describe("geo-api import client", () => {
   beforeEach(() => {
     process.env.GEO_API_URL = "http://geo.test";
-    process.env.ADMIN_API_TOKEN = "secret-token";
+    process.env.GEO_ADMIN_TOKEN = "secret-token";
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
     delete process.env.GEO_API_URL;
-    delete process.env.ADMIN_API_TOKEN;
+    delete process.env.GEO_ADMIN_TOKEN;
   });
 
   it("lists imports scoped to a layer and passes the opaque cursor through", async () => {
@@ -76,17 +75,6 @@ describe("geo-api import client", () => {
     expect(String(url)).toBe("http://geo.test/api/v1/admin/imports/imp-1/rows/7/resolution");
     expect(init.method).toBe("POST");
     expect(JSON.parse(String(init.body))).toEqual({ resolution: "skip" });
-  });
-
-  it("commits with an explicit publish/draft status", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ id: "imp-1" }));
-    vi.stubGlobal("fetch", fetchMock);
-
-    await commitImport("imp-1", "published");
-
-    const [url, init] = lastCall(fetchMock);
-    expect(String(url)).toBe("http://geo.test/api/v1/admin/imports/imp-1/commit");
-    expect(JSON.parse(String(init.body))).toEqual({ status: "published" });
   });
 
   it("cancels through the DELETE endpoint", async () => {

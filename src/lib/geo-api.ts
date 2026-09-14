@@ -8,6 +8,7 @@ import type {
   AdminSource,
   CsvMapping,
   FeatureWrite,
+  ImportApproval,
   ImportSummary,
   LayerCreate,
   LayerUpdate,
@@ -31,12 +32,12 @@ export class GeoApiError extends Error {
 
 function serverConfig(): { baseUrl: string; token: string } {
   const baseUrl = process.env.GEO_API_URL;
-  const token = process.env.ADMIN_API_TOKEN;
+  const token = process.env.GEO_ADMIN_TOKEN;
   if (!baseUrl) {
     throw new GeoApiError(500, "GEO_API_URL is not configured on the server");
   }
   if (!token) {
-    throw new GeoApiError(500, "ADMIN_API_TOKEN is not configured on the server");
+    throw new GeoApiError(500, "GEO_ADMIN_TOKEN is not configured on the server");
   }
   return { baseUrl: baseUrl.replace(/\/+$/, ""), token };
 }
@@ -77,6 +78,48 @@ export async function geoFetch<T>(path: string, init: RequestInit = {}): Promise
   const { baseUrl, token } = serverConfig();
   const headers = new Headers(init.headers);
   headers.set("Authorization", `Bearer ${token}`);
+  if (init.body !== undefined && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}${path}`, {
+      ...init,
+      headers,
+      cache: "no-store",
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+  } catch (error) {
+    throw new GeoApiError(503, "Geo API is unavailable", String(error));
+  }
+
+  if (!response.ok) throw await parseError(response);
+  if (response.status === 204) return undefined as T;
+  return (await response.json()) as T;
+}
+
+function approveConfig(): { baseUrl: string; token: string } {
+  const baseUrl = process.env.GEO_API_URL;
+  const token = process.env.GEO_APPROVE_TOKEN;
+  if (!baseUrl) {
+    throw new GeoApiError(500, "GEO_API_URL is not configured on the server");
+  }
+  if (!token) {
+    throw new GeoApiError(500, "GEO_APPROVE_TOKEN is not configured on the server");
+  }
+  return { baseUrl: baseUrl.replace(/\/+$/, ""), token };
+}
+
+async function approveFetch<T>(
+  path: string,
+  approverId: string,
+  init: RequestInit = {},
+): Promise<T> {
+  const { baseUrl, token } = approveConfig();
+  const headers = new Headers(init.headers);
+  headers.set("Authorization", `Bearer ${token}`);
+  headers.set("X-Approver-Identity", approverId);
   if (init.body !== undefined && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
@@ -222,18 +265,40 @@ export function resolveImportRow(
   });
 }
 
-export function commitImport(
-  importId: string,
-  status: "draft" | "published",
-): Promise<ImportSummary> {
-  return geoFetch(`/api/v1/admin/imports/${importId}/commit`, {
-    method: "POST",
-    body: JSON.stringify({ status }),
-  });
-}
-
 export function cancelImport(importId: string): Promise<void> {
   return geoFetch(`/api/v1/admin/imports/${importId}`, { method: "DELETE" });
+}
+
+export function listApprovals(
+  options: {
+    limit?: number;
+    cursor?: string | null;
+    state?: string | null;
+    importId?: string | null;
+  } = {},
+): Promise<Page<ImportApproval>> {
+  const query = new URLSearchParams();
+  query.set("limit", String(options.limit ?? 100));
+  if (options.cursor) query.set("cursor", options.cursor);
+  if (options.state) query.set("state", options.state);
+  if (options.importId) query.set("import_id", options.importId);
+  return geoFetch(`/api/v1/admin/approvals?${query.toString()}`);
+}
+
+export function getApproval(approvalId: string): Promise<ImportApproval> {
+  return geoFetch(`/api/v1/admin/approvals/${approvalId}`);
+}
+
+export function decideApproval(
+  importId: string,
+  decision: "approve" | "reject",
+  reason: string | undefined,
+  approverId: string,
+): Promise<ImportApproval> {
+  return approveFetch(`/api/v1/admin/imports/${importId}/approval`, approverId, {
+    method: "POST",
+    body: JSON.stringify({ decision, reason }),
+  });
 }
 
 export function listSources(

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { MockGeoApiError, syncSourceMock } = vi.hoisted(() => {
   class MockGeoApiError extends Error {
@@ -17,14 +17,34 @@ vi.mock("@/lib/geo-api", () => ({
 }));
 
 import { POST } from "@/app/api/sources/[id]/sync/route";
+import { enableProxyTrust, identityHeaders } from "@/test/identity";
 
 function context(id: string) {
   return { params: Promise.resolve({ id }) };
 }
 
+function syncRequest(headers: Record<string, string> = identityHeaders()): Request {
+  return new Request("http://admin.test/api/sources/s1/sync", {
+    method: "POST",
+    headers,
+  });
+}
+
 describe("POST /api/sources/[id]/sync", () => {
+  beforeEach(() => {
+    enableProxyTrust();
+  });
+
   afterEach(() => {
     syncSourceMock.mockReset();
+    delete process.env.ADMIN_PROXY_SECRET;
+  });
+
+  it("rejects unauthenticated requests before calling the Geo API", async () => {
+    const response = await POST(syncRequest({}), context("s1"));
+
+    expect(response.status).toBe(401);
+    expect(syncSourceMock).not.toHaveBeenCalled();
   });
 
   it("returns the sync result on success", async () => {
@@ -40,10 +60,7 @@ describe("POST /api/sources/[id]/sync", () => {
       last_error: null,
     });
 
-    const response = await POST(
-      new Request("http://localhost/api/sources/s1/sync", { method: "POST" }),
-      context("s1"),
-    );
+    const response = await POST(syncRequest(), context("s1"));
     const payload = await response.json();
 
     expect(response.status).toBe(200);
@@ -65,10 +82,7 @@ describe("POST /api/sources/[id]/sync", () => {
       last_error: "upstream 503",
     });
 
-    const response = await POST(
-      new Request("http://localhost/api/sources/s1/sync", { method: "POST" }),
-      context("s1"),
-    );
+    const response = await POST(syncRequest(), context("s1"));
     const payload = await response.json();
 
     expect(response.status).toBe(200);
@@ -82,10 +96,7 @@ describe("POST /api/sources/[id]/sync", () => {
       new MockGeoApiError(409, "External source is disabled"),
     );
 
-    const response = await POST(
-      new Request("http://localhost/api/sources/s1/sync", { method: "POST" }),
-      context("s1"),
-    );
+    const response = await POST(syncRequest(), context("s1"));
     const payload = await response.json();
 
     expect(response.status).toBe(409);

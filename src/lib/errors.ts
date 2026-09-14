@@ -11,7 +11,7 @@ export function describeError(error: unknown): ActionError {
       case 403:
         return {
           status: error.status,
-          message: `Admin authentication failed (${error.status}). Check ADMIN_API_TOKEN on the server.`,
+          message: `Geo Hub rejected the admin credential (${error.status}). Check GEO_ADMIN_TOKEN on the server.`,
         };
       case 404:
         return { status: 404, message: error.message || "Not found." };

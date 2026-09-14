@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { POST } from "@/app/api/imports/route";
+import { enableProxyTrust, identityHeaders } from "@/test/identity";
 
 function stageRequest(overrides: {
   file?: File | null;
   fields?: Record<string, string>;
+  headers?: Record<string, string>;
 }): Request {
   const form = new FormData();
   if (overrides.file !== null) {
@@ -18,19 +20,47 @@ function stageRequest(overrides: {
   for (const [key, value] of Object.entries(overrides.fields ?? {})) {
     form.set(key, value);
   }
-  return new Request("http://admin.test/api/imports", { method: "POST", body: form });
+  return new Request("http://admin.test/api/imports", {
+    method: "POST",
+    body: form,
+    headers: overrides.headers ?? identityHeaders(),
+  });
 }
 
 describe("POST /api/imports upload BFF", () => {
   beforeEach(() => {
     process.env.GEO_API_URL = "http://geo.test";
-    process.env.ADMIN_API_TOKEN = "secret-token";
+    process.env.GEO_ADMIN_TOKEN = "geo-admin-token";
+    enableProxyTrust();
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
     delete process.env.GEO_API_URL;
-    delete process.env.ADMIN_API_TOKEN;
+    delete process.env.GEO_ADMIN_TOKEN;
+    delete process.env.ADMIN_PROXY_SECRET;
+  });
+
+  it("rejects unauthenticated uploads before any Geo Hub call", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await POST(stageRequest({ headers: {} }));
+
+    expect(response.status).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects cross-origin mutations before any Geo Hub call", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await POST(
+      stageRequest({ headers: identityHeaders({ origin: "http://evil.test" }) }),
+    );
+
+    expect(response.status).toBe(403);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("rejects oversized uploads before calling the Geo API", async () => {
@@ -49,7 +79,7 @@ describe("POST /api/imports upload BFF", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("forwards the file and mapping to the Geo API with a server-side token", async () => {
+  it("forwards the file and mapping to the Geo API with the scoped admin token", async () => {
     const summary = { id: "imp-1", row_count: 1 };
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify(summary), {
@@ -77,7 +107,7 @@ describe("POST /api/imports upload BFF", () => {
     expect(response.status).toBe(201);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(String(url)).toBe("http://geo.test/api/v1/admin/imports");
-    expect((init.headers as Headers).get("Authorization")).toBe("Bearer secret-token");
+    expect((init.headers as Headers).get("Authorization")).toBe("Bearer geo-admin-token");
     const body = JSON.parse(String(init.body)) as Record<string, unknown>;
     expect(body.layer_id).toBe("layer-1");
     expect(body.filename).toBe("points.csv");

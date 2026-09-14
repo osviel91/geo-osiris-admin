@@ -1,9 +1,9 @@
 "use server";
 
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
+import { getCurrentUser } from "@/lib/auth";
 import {
   archiveFeature,
   createFeature,
@@ -18,8 +18,11 @@ import {
   buildLayerUpdate,
   type LayerFormFields,
 } from "@/lib/layer-form";
-import { SESSION_COOKIE, authEnabled, sessionToken } from "@/lib/session";
 import type { FeatureStatus } from "@/lib/types";
+
+function unauthorized(): ActionState {
+  return { error: { status: 401, message: "Authentication required." } };
+}
 
 function str(formData: FormData, key: string): string {
   const value = formData.get(key);
@@ -58,6 +61,7 @@ export async function createLayerAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  if (!(await getCurrentUser())) return unauthorized();
   const fields = layerFields(formData);
   if (!fields.name.trim() || !fields.slug?.trim() || !fields.category.trim()) {
     return { error: { status: 422, message: "Name, slug and category are required." } };
@@ -76,6 +80,7 @@ export async function updateLayerAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  if (!(await getCurrentUser())) return unauthorized();
   const layerId = str(formData, "layerId");
   const fields = layerFields(formData);
   if (!layerId) return { error: { status: 422, message: "Missing layer id." } };
@@ -92,6 +97,7 @@ export async function createFeatureAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  if (!(await getCurrentUser())) return unauthorized();
   const layerId = str(formData, "layerId");
   if (!layerId) return { error: { status: 422, message: "Missing layer id." } };
   let created: { id: string };
@@ -108,6 +114,7 @@ export async function updateFeatureAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  if (!(await getCurrentUser())) return unauthorized();
   const featureId = str(formData, "featureId");
   if (!featureId) return { error: { status: 422, message: "Missing feature id." } };
   try {
@@ -123,6 +130,7 @@ export async function archiveFeatureAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  if (!(await getCurrentUser())) return unauthorized();
   const featureId = str(formData, "featureId");
   const layerId = str(formData, "layerId");
   if (!featureId) return { error: { status: 422, message: "Missing feature id." } };
@@ -133,24 +141,4 @@ export async function archiveFeatureAction(
   }
   revalidatePath(`/layers/${layerId}`);
   redirect(`/layers/${layerId}`);
-}
-
-export async function loginAction(
-  _prev: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  if (!authEnabled()) redirect("/");
-  const password = str(formData, "password");
-  const token = sessionToken();
-  if (!token || password !== process.env.ADMIN_UI_PASSWORD) {
-    return { error: { status: 401, message: "Invalid password." } };
-  }
-  const store = await cookies();
-  store.set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-  });
-  redirect("/");
 }

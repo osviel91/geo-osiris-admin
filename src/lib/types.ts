@@ -88,6 +88,46 @@ export function isManaged(layer: Pick<AdminLayer, "mode">): boolean {
 export type ImportState = "validated" | "committed" | "cancelled";
 export type ImportRowState = "invalid" | "candidate" | "valid";
 
+export type ApprovalState =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "expired"
+  | "stale"
+  | "executed"
+  | "failed";
+
+export type ImportApproval = {
+  id: string;
+  import_id: string;
+  layer_id: string;
+  layer_name: string;
+  layer_slug: string;
+  filename: string;
+  format: string;
+  source_name: string | null;
+  source_url: string | null;
+  mapping_version: string;
+  requested_status: "draft" | "published";
+  requester: string;
+  requested_at: string;
+  state: ApprovalState;
+  approver: string | null;
+  approved_at: string | null;
+  rejection_reason: string | null;
+  expires_at: string;
+  executor: string | null;
+  executed_at: string | null;
+  failure_reason: string | null;
+  fingerprint: string;
+  row_count: number;
+  valid_count: number;
+  invalid_count: number;
+  candidate_count: number;
+  resolved_candidate_count: number;
+  unresolved_candidate_count: number;
+};
+
 export type ImportBase = {
   id: string;
   layer_id: string;

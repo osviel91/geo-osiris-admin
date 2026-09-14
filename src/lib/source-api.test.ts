@@ -16,13 +16,13 @@ function lastCall(fetchMock: ReturnType<typeof vi.fn>): [string, RequestInit] {
 describe("geo-api source client", () => {
   beforeEach(() => {
     process.env.GEO_API_URL = "http://geo.test";
-    process.env.ADMIN_API_TOKEN = "secret-token";
+    process.env.GEO_ADMIN_TOKEN = "secret-token";
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
     delete process.env.GEO_API_URL;
-    delete process.env.ADMIN_API_TOKEN;
+    delete process.env.GEO_ADMIN_TOKEN;
   });
 
   it("lists sources with the opaque cursor passed through untouched", async () => {

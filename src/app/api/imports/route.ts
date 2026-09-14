@@ -1,9 +1,13 @@
+import { authorize } from "@/lib/auth";
 import { stageImport } from "@/lib/geo-api";
 import { errorResponse, failResponse, okResponse } from "@/lib/http";
 import { MAX_IMPORT_BYTES } from "@/lib/import-form";
 import type { CsvMapping } from "@/lib/types";
 
 export async function POST(request: Request): Promise<Response> {
+  const auth = authorize(request, { mutation: true });
+  if ("response" in auth) return auth.response;
+
   let form: FormData;
   try {
     form = await request.formData();

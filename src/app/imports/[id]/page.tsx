@@ -4,10 +4,11 @@ import { ErrorBanner } from "@/components/ErrorBanner";
 import { ImportActions } from "@/components/ImportActions";
 import { ImportRowResolution } from "@/components/ImportRowResolution";
 import { Pagination } from "@/components/Pagination";
+import { approvalStateExplanation, approvalStateLabel } from "@/lib/approval";
 import { describeError } from "@/lib/errors";
-import { getImport, listImportRows } from "@/lib/geo-api";
+import { getImport, listApprovals, listImportRows } from "@/lib/geo-api";
 import { formatReason } from "@/lib/import-form";
-import type { AdminImport, AdminImportRow, Page } from "@/lib/types";
+import type { AdminImport, AdminImportRow, ImportApproval, Page } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -43,9 +44,11 @@ export default async function ImportDetailPage({
 
   let summary: AdminImport;
   let rows: Page<AdminImportRow>;
+  let approvals: Page<ImportApproval>;
   try {
     summary = await getImport(id);
     rows = await listImportRows(id, { limit: 50, cursor, state });
+    approvals = await listApprovals({ importId: id, limit: 1 });
   } catch (error) {
     return (
       <section className="space-y-4">
@@ -58,6 +61,7 @@ export default async function ImportDetailPage({
   }
 
   const pendingImport = summary.status === "validated";
+  const latestApproval = approvals.items[0] ?? null;
 
   return (
     <section className="space-y-6">
@@ -118,6 +122,35 @@ export default async function ImportDetailPage({
           </dd>
         </div>
       </dl>
+
+      <div className="rounded border bg-white p-4 text-sm">
+        <h2 className="text-base font-medium">Approval</h2>
+        {latestApproval ? (
+          <div className="mt-1 space-y-1">
+            <p>
+              <span className="font-medium">{approvalStateLabel(latestApproval.state)}</span>
+              {" · "}
+              <Link
+                className="text-blue-700 hover:underline"
+                href={`/approvals/${latestApproval.id}`}
+              >
+                Review approval
+              </Link>
+            </p>
+            {approvalStateExplanation(latestApproval.state) && (
+              <p className="text-gray-600">{approvalStateExplanation(latestApproval.state)}</p>
+            )}
+            <p className="text-gray-600">
+              Requested by {latestApproval.requester} · expires{" "}
+              {formatDate(latestApproval.expires_at)}
+            </p>
+          </div>
+        ) : (
+          <p className="mt-1 text-gray-600">
+            No approval requested. The curator can request publication approval.
+          </p>
+        )}
+      </div>
 
       {pendingImport && <ImportActions summary={summary} />}
 

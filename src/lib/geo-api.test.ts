@@ -12,13 +12,13 @@ function jsonResponse(body: unknown, status = 200) {
 describe("geo-api server client", () => {
   beforeEach(() => {
     process.env.GEO_API_URL = "http://geo.test";
-    process.env.ADMIN_API_TOKEN = "secret-token";
+    process.env.GEO_ADMIN_TOKEN = "secret-token";
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
     delete process.env.GEO_API_URL;
-    delete process.env.ADMIN_API_TOKEN;
+    delete process.env.GEO_ADMIN_TOKEN;
   });
 
   it("sends the admin token as a server-side Authorization header", async () => {
@@ -82,7 +82,7 @@ describe("geo-api server client", () => {
   });
 
   it("fails closed when server configuration is missing", async () => {
-    delete process.env.ADMIN_API_TOKEN;
+    delete process.env.GEO_ADMIN_TOKEN;
     await expect(listLayers()).rejects.toMatchObject({ status: 500 });
   });
 });
